@@ -10,7 +10,7 @@ documentation = "https://docs.rs/grob"
 description = """
 Growable buffer especially useful for Windows API calls.
 """
-keywords = ["api", "buffer", "growable", "string", "wide", "windows"]
+keywords = ["api", "buffer", "growable", "string", "windows"]
 categories = ["data-structures", "development-tools::ffi", "memory-management", "os::windows-apis"]
 edition = "2021"
 # rust-version = "1.56"
