@@ -1,0 +1,38 @@
+[package]
+name = "grob"
+version = "0.1.0"
+authors = ["Brian Cook (a.k.a Coding-Badly)"]
+license = "Apache-2.0 OR MIT"
+readme = "../README.md"
+repository = "https://github.com/Coding-Badly/grob"
+documentation = "https://docs.rs/grob"
+# homepage = "https://grob.github.io/book"
+description = """
+Growable buffer especially useful for Windows API calls.
+"""
+keywords = ["api", "buffer", "growable", "string", "wide", "windows"]
+categories = ["data-structures", "development-tools::ffi", "memory-management", "os::windows-apis"]
+edition = "2021"
+# rust-version = "1.56"
+# include = ["src/", "LICENSE-*", "README.md", "CHANGELOG.md", "COPYRIGHT"]
+
+[dependencies]
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.48"
+features = [
+    "Win32_Foundation",
+    "Win32_NetworkManagement_NetManagement",
+    "Win32_System_SystemServices",
+]
+
+[target.'cfg(windows)'.dev-dependencies.windows]
+version = "0.48"
+features = [
+    "Win32_Networking_WinSock",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemInformation",
+    "Win32_System_WindowsProgramming",
+]
