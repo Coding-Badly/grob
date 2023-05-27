@@ -1,6 +1,6 @@
 [package]
 name = "grob"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Brian Cook (a.k.a Coding-Badly)"]
 license = "Apache-2.0 OR MIT"
 readme = "../README.md"
