@@ -137,6 +137,7 @@ pub struct Argument<'gb, IT> {
     parent: &'gb mut dyn GrowableBufferAsParent,
     pointer: IT,
     size: u32,
+    tries: usize,
 }
 
 impl<'gb, IT> Argument<'gb, IT>
@@ -173,6 +174,9 @@ where
     }
     pub fn size(&mut self) -> *mut u32 {
         &mut self.size
+    }
+    pub fn tries(&self) -> usize {
+        self.tries
     }
 }
 
@@ -230,10 +234,12 @@ where
     pub fn argument(&mut self) -> Argument<'_, IT> {
         self.final_size = 0;
         let (pointer, capacity) = self.buffer_strategy.raw_buffer();
+        let tries = self.buffer_strategy.tries + 1;
         Argument {
             parent: self as &mut dyn GrowableBufferAsParent,
             pointer: IT::convert_pointer(pointer),
             size: IT::capacity_to_size(capacity),
+            tries,
         }
     }
 }
