@@ -7,6 +7,7 @@ on: [push]
 
 jobs:
   run-miri-tests:
+    name: Miri test.
     runs-on: windows-latest
     steps:
      - uses: actions/checkout@v3
@@ -20,6 +21,15 @@ jobs:
        run: rustup update
      - name: What does Miri find?
        run: cargo +nightly miri test
+  run-adapters-addresses-full:
+    name: GetAdaptersAddresses using the full API.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Freshen Rust.
+        run: rustup update
+      - name: GetAdaptersAddresses using the full API.
+        run: cargo run --example adapters-addresses-full --release
 
 #  run-unit-tests:
 #    runs-on: windows-latest
