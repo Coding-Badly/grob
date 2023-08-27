@@ -1,6 +1,6 @@
 name: Various grob tests.
 
-run-name: Lots of testing on ${{ github.ref }} branch.  ${{ github.event.head_commit.message }}
+run-name: Lots of testing on ${{ github.ref_name }} branch.  ${{ github.event.head_commit.message }}
 
 on: [push]
 
