@@ -1,0 +1,38 @@
+name: Various grob tests.
+
+#run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+#run-name: 
+
+on: [push]
+
+jobs:
+  run-miri-tests:
+    name: Miri test.
+    runs-on: windows-latest
+    steps:
+     - uses: actions/checkout@v3
+     - name: Install nightly.
+       run: rustup toolchain install nightly
+     - name: Install Miri.
+       run: rustup +nightly component add miri
+     - name: Prepare Miri.
+       run: cargo +nightly miri setup
+     - name: Freshen Rust.
+       run: rustup update
+     - name: What does Miri find?
+       run: cargo +nightly miri test
+  run-all-examples:
+    name: Run all the examples.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+#      - name: Freshen Rust.
+#        run: rustup update
+      - name: GetAdaptersAddresses using the full API.
+        run: cargo run --example adapters-addresses-full --release
+      - name: GetAdaptersAddresses using the generic API.
+        run: cargo run --example adapters-addresses-generic --release
+      - name: GetModuleFileNameW using the full API.
+        run: cargo run --example module-filename-full --release
+      - name: GetModuleFileNameW using the generic API.
+        run: cargo run --example module-filename-generic --release
