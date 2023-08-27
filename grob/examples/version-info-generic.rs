@@ -124,7 +124,7 @@ fn recurse(path: PathBuf) {
                     if let Ok(ft) = e.file_type() {
                         let p = e.path();
                         if ft.is_dir() {
-                            if p.ancestors().count() < 4 {
+                            if p.ancestors().count() < 2 {
                                 recurse(p);
                             }
                         } else {
