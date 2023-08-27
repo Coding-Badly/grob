@@ -10,8 +10,16 @@ jobs:
     runs-on: windows-latest
     steps:
      - uses: actions/checkout@v3
-     - name: What does Miri find?
+     - name: Install nightly.
+       run: rustup toolchain install nightly
+     - name: Install Miri.
+       run: rustup +nightly component add miri
+     - name: Prepare Miri.
        run: cargo +nightly miri setup
+     - name: Freshen Rust.
+       run: rustup update
+     - name: What does Miri find?
+       run: cargo +nightly miri test
 
 #  run-unit-tests:
 #    runs-on: windows-latest
