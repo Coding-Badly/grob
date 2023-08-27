@@ -6,12 +6,19 @@ name: GitHub Actions Demo
 on: [push]
 
 jobs:
-  run-unit-tests:
+  run-miri-tests:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Test it.  Test it good.
-        run: cargo test
+     - uses: actions/checkout@v3
+     - name: What does Miri find?
+       run: cargo +nightly miri setup
+
+#  run-unit-tests:
+#    runs-on: windows-latest
+#    steps:
+#     - uses: actions/checkout@v3
+#     - name: Test it.  Test it good.
+#       run: cargo test
 
 #  Explore-GitHub-Actions:
 #    runs-on: ubunut-latest
