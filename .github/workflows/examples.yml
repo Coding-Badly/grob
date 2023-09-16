@@ -1,0 +1,34 @@
+name: Examples
+
+run-name: Run all examples on the ${{ github.ref_name }} branch.  ${{ github.event.head_commit.message }}
+
+on: [push]
+
+jobs:
+  run-all-examples:
+    name: Run all the examples.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: GetAdaptersAddresses using the full API.
+        run: cargo run --example adapters-addresses-full --release
+      - name: GetAdaptersAddresses using the generic API.
+        run: cargo run --example adapters-addresses-generic --release
+      - name: GetModuleFileNameW using the full API.
+        run: cargo run --example module-filename-full --release
+      - name: GetModuleFileNameW using the generic API.
+        run: cargo run --example module-filename-generic --release
+      - name: GetLogicalProcessorInformationEx using the full API.
+        run: cargo run --example processor-full --release
+      - name: GetLogicalProcessorInformationEx using the generic API.
+        run: cargo run --example processor-generic --release
+      - name: GetTcpTable2 using the full API.
+        run: cargo run --example tcp-table-full --release
+      - name: GetTcpTable2 using the generic API.
+        run: cargo run --example tcp-table-generic --release
+      - name: GetUserNameW using the full API.
+        run: cargo run --example username-full --release
+      - name: GetUserNameW using the generic API.
+        run: cargo run --example username-generic --release
+      - name: GetFileVersionInfoW using the generic API.
+        run: cargo run --example version-info-generic --release

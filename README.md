@@ -29,4 +29,6 @@ See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
 ## Build Status
 
 ![Clippy](https://github.com/Coding-Badly/grob/actions/workflows/clippy.yml/badge.svg)
+![Examples](https://github.com/Coding-Badly/grob/actions/workflows/examples.yml/badge.svg)
 ![Miri](https://github.com/Coding-Badly/grob/actions/workflows/miri.yml/badge.svg)
+![Test](https://github.com/Coding-Badly/grob/actions/workflows/test.yml/badge.svg)
