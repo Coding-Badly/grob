@@ -29,3 +29,4 @@ See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
 ## Build Status
 
 ![Clippy](https://github.com/Coding-Badly/grob/actions/workflows/clippy.yml/badge.svg)
+![Miri](https://github.com/Coding-Badly/grob/actions/workflows/miri.yml/badge.svg)

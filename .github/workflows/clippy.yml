@@ -5,10 +5,10 @@ run-name: Ensure Clippy is happy about the ${{ github.ref_name }} branch.  ${{ g
 on: [push]
 
 jobs:
-  run-miri-tests:
+  run-clippy-tests:
     name: Run Clippy
     runs-on: windows-latest
     steps:
-     - uses: actions/checkout@v3
-     - name: Run Clippy
-       run: cargo clippy
+      - uses: actions/checkout@v3
+      - name: Run Clippy
+        run: cargo clippy

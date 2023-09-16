@@ -5,21 +5,6 @@ run-name: Lots of testing on ${{ github.ref_name }} branch.  ${{ github.event.he
 on: [push]
 
 jobs:
-  run-miri-tests:
-    name: Miri test.
-    runs-on: windows-latest
-    steps:
-     - uses: actions/checkout@v3
-     - name: Install nightly.
-       run: rustup toolchain install nightly
-     - name: Install Miri.
-       run: rustup +nightly component add miri
-     - name: Prepare Miri.
-       run: cargo +nightly miri setup
-     - name: Freshen Rust.
-       run: rustup update
-     - name: What does Miri find?
-       run: cargo +nightly miri test
   run-all-examples:
     name: Run all the examples.
     runs-on: windows-latest
