@@ -45,14 +45,14 @@ impl<const CAPACITY: usize> StackBuffer<CAPACITY> {
         // https://github.com/rust-lang/rust/issues/95228
         let p = self.stack.as_mut_ptr() as *mut u8;
         let offset = (p as usize) % os::ALIGNMENT;
-        (unsafe { p.offset(offset as isize) }, offset)
+        (unsafe { p.add(offset) }, offset)
     }
     fn as_ptr(&self) -> (*const u8, usize) {
         // let offset = p.addr() % ALIGNMENT;
         // https://github.com/rust-lang/rust/issues/95228
         let p = self.stack.as_ptr() as *const u8;
         let offset = (p as usize) % os::ALIGNMENT;
-        (unsafe { p.offset(offset as isize) }, offset)
+        (unsafe { p.add(offset) }, offset)
     }
     fn capacity(&self) -> u32 {
         if CAPACITY >= os::ALIGNMENT {
@@ -67,6 +67,12 @@ impl<const CAPACITY: usize> StackBuffer<CAPACITY> {
     }
 }
 
+impl<const CAPACITY: usize> Default for StackBuffer<CAPACITY> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const CAPACITY: usize> ReadBuffer for StackBuffer<CAPACITY> {
     fn read_buffer(&self) -> (Option<*const u8>, u32) {
         if CAPACITY >= os::ALIGNMENT {
@@ -78,7 +84,7 @@ impl<const CAPACITY: usize> ReadBuffer for StackBuffer<CAPACITY> {
 }
 
 impl<const CAPACITY: usize> WriteBuffer for StackBuffer<CAPACITY> {
-    fn as_read_buffer<'s>(&'s self) -> &'s dyn ReadBuffer {
+    fn as_read_buffer(&self) -> &dyn ReadBuffer {
         self as &dyn ReadBuffer
     }
     fn capacity(&self) -> u32 {
@@ -112,7 +118,7 @@ pub(crate) struct HeapBuffer {
 impl HeapBuffer {
     pub(crate) fn new(capacity: u32) -> Self {
         let layout = Layout::from_size_align(capacity.try_into().unwrap(), os::ALIGNMENT).unwrap();
-        let pointer = unsafe { alloc(layout.clone()) };
+        let pointer = unsafe { alloc(layout) };
         if pointer.is_null() {
             std::alloc::handle_alloc_error(layout);
         }
@@ -130,7 +136,7 @@ impl HeapBuffer {
 
 impl Drop for HeapBuffer {
     fn drop(&mut self) {
-        if self.pointer != std::ptr::null_mut() {
+        if !self.pointer.is_null() {
             unsafe { dealloc(self.pointer, self.layout) };
         }
     }
@@ -155,7 +161,7 @@ impl ReadBuffer for HeapBuffer {
 }
 
 impl WriteBuffer for HeapBuffer {
-    fn as_read_buffer<'s>(&'s self) -> &'s dyn ReadBuffer {
+    fn as_read_buffer(&self) -> &dyn ReadBuffer {
         self as &dyn ReadBuffer
     }
     fn capacity(&self) -> u32 {

@@ -161,13 +161,13 @@ where
         }
     }
     pub fn commit(self) {
-        self.parent.set_final_size(self.size.try_into().unwrap());
+        self.parent.set_final_size(self.size);
     }
     pub fn commit_no_data(self) {
         self.parent.set_final_size(0);
     }
     pub fn grow(self) {
-        self.parent.grow(self.size.try_into().unwrap());
+        self.parent.grow(self.size);
     }
     pub fn pointer(&self) -> IT {
         self.pointer

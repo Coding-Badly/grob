@@ -51,7 +51,7 @@ pub trait ReadBuffer {
 }
 
 pub trait WriteBuffer {
-    fn as_read_buffer<'s>(&'s self) -> &'s dyn ReadBuffer;
+    fn as_read_buffer(&self) -> &dyn ReadBuffer;
     fn capacity(&self) -> u32;
     fn set_final_size(&mut self, final_size: u32);
     fn write_buffer(&mut self) -> (*mut u8, u32);

@@ -61,7 +61,7 @@ impl ToResult for RvIsError {
             ERROR_INSUFFICIENT_BUFFER => Ok(FillBufferAction::Grow),
             ERROR_BUFFER_OVERFLOW => Ok(FillBufferAction::Grow),
             ERROR_NO_DATA => Ok(FillBufferAction::NoData),
-            c @ _ => Err(std::io::Error::from_raw_os_error(c.0 as i32)),
+            c => Err(std::io::Error::from_raw_os_error(c.0 as i32)),
         };
         if rv.is_ok() && needed_size.needed_size() == 0 {
             Ok(FillBufferAction::NoData)
@@ -157,7 +157,7 @@ impl RawToInternal for PWSTR {
 
 impl<'sb> FrozenBuffer<'sb, u16> {
     pub fn to_path_buf(&self) -> Option<PathBuf> {
-        self.to_os_string().map(|v| PathBuf::from(v))
+        self.to_os_string().map(PathBuf::from)
     }
     pub fn to_os_string(&self) -> Option<OsString> {
         let (p, s) = self.read_buffer();
