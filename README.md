@@ -28,4 +28,4 @@ See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
 
 ## Build Status
 
-![Clippy](https://github.com/github/docs/actions/workflows/main.yml/badge.svg)
+![Clippy](https://github.com/github/docs/actions/workflows/clippy.yml/badge.svg)
