@@ -25,3 +25,7 @@ can easily use.
 `grob` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 
 See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
+
+## Build Status
+
+![Clippy](https://github.com/github/docs/actions/workflows/clippy.yml/badge.svg)
