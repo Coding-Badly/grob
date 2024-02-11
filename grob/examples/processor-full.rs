@@ -16,40 +16,10 @@ use windows::Win32::System::SystemInformation::{
     GetLogicalProcessorInformationEx, RelationGroup, SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX,
 };
 
-use grob::{GrowStrategy, GrowableBuffer, RvIsError, StackBuffer, ToResult, WriteBuffer};
-
-struct GrowByNearestNibble {}
-
-impl GrowByNearestNibble {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-impl GrowStrategy for GrowByNearestNibble {
-    fn next_capacity(&self, _tries: usize, current_size: u32, desired_size: u32) -> u32 {
-        // With desired_size a u32, doing the math with u64 prevents all overlow possibilities.
-        // Determine the ceiling of the desired number of nibbles
-        let nibbles = (desired_size as u64 + 15) / 16;
-        // Convert that to bytes
-        let bytes = nibbles * 16;
-        // Limit that to u32::MAX then convert to u32.
-        let target = bytes.min(u32::MAX as u64) as u32;
-        // The target has to be greater than the current_size or something is terribly wrong and
-        // is going to get worse.
-        assert!(target > current_size);
-        // Output some stuff so the human knows what's happening.
-        println!(
-            "{:>2} {:>3} {:>3} {:>3}",
-            _tries, current_size, desired_size, target
-        );
-        // Return the new target.
-        target
-    }
-}
+use grob::{GrowForSmallBinary, GrowableBuffer, RvIsError, StackBuffer, ToResult, WriteBuffer};
 
 fn common(initial_buffer: &mut dyn WriteBuffer) -> Result<(), Box<dyn std::error::Error>> {
-    let grow_strategy = GrowByNearestNibble::new();
+    let grow_strategy = GrowForSmallBinary::new();
 
     // Loop until the call to GetAdaptersAddresses fails with an error or succeeds because the
     // buffer has enough space.

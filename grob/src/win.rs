@@ -30,11 +30,48 @@ use crate::buffer::os::ALIGNMENT;
 use crate::traits::{NeededSize, RawToInternal, ToResult};
 use crate::{Argument, FrozenBuffer};
 
+/// Size of [`WCHAR`][wc] / [`u16`] (two bytes) cast as a [`u32`].
+///
+/// The value is cast to [`u32`] to make it more convenient when working with buffer capacities.
+///
+/// [gc]: https://crates.io/crates/grob
+/// [wc]: https://learn.microsoft.com/en-us/windows/win32/extensible-storage-engine/wchar
+///
 pub const SIZE_OF_WCHAR: u32 = size_of::<u16>() as u32;
+
+/// A good starting buffer capacity, in bytes, for Windows API calls that return the name of something.
+///
+/// The value is based on [`UNLEN`].  According to the Windows API documentation this value works
+/// as-is for some operating system calls like [`GetUserNameW`][1].
+///
+/// [`winapi_string`][2] uses this value for the initial stack buffer capacity.
+///
+/// [1]: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getusernamew
+/// [2]: crate::generic::winapi_string
+///
 pub const CAPACITY_FOR_NAMES: usize = ((UNLEN + 1) as usize * SIZE_OF_WCHAR as usize) + ALIGNMENT;
+
+/// A good starting buffer capacity, in bytes, for Windows API calls that return a file system path.
+///
+/// The value is based on [`MAX_PATH`].  Windows has support for arbitrarily long paths so this
+/// value is only useful as a starting buffer capacity.  [`GetModuleFileNameW`][4] is an example API
+/// call where this value is useful.
+///
+/// [`winapi_path_buf`][3] uses this value for the initial stack buffer capacity.
+///
+/// [3]: crate::generic::winapi_path_buf
+/// [4]: https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamew
+///
 pub const CAPACITY_FOR_PATHS: usize = (MAX_PATH as usize * SIZE_OF_WCHAR as usize) + ALIGNMENT;
 
 impl<'gb> Argument<'gb, PWSTR> {
+    /// Provides access to the buffer through a writable slice of [`u16`]
+    ///
+    /// Some Windows API calls, like [`GetModuleFileNameW`][1], take a `&mut [u16]`.  This method
+    /// provides that argument.
+    ///
+    /// [1]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/System/LibraryLoader/fn.GetModuleFileNameW.html
+    ///
     pub fn as_mut_slice(&mut self) -> &mut [u16] {
         let rv = unsafe { from_raw_parts_mut(self.pointer.0, self.size as usize) };
         unsafe { SetLastError(NO_ERROR) };
@@ -42,6 +79,43 @@ impl<'gb> Argument<'gb, PWSTR> {
     }
 }
 
+/// Wrapper for the return value from a Windows API call that returns an error code.
+///
+/// The primary purpose of [`RvIsError`] is to convert a [`BOOL`] or [`u32`] (ULONG) Windows API
+/// return value into a [`FillBufferResult`].  The [`FillBufferResult`] is either
+/// Ok([`FillBufferAction`]) or an operating system error (Err([`std::io::Error`])) that is not
+/// handled by the [grob crate][gc].
+///
+/// # Examples
+///
+/// [`GetAdaptersAddresses`][1] is a good example for [`RvIsError`].  A complete example is
+/// available on [GitHub][2].
+///
+/// ``` ignore
+/// // Make the API call indicating what the return value means
+/// let rv = RvIsError::new(unsafe {
+///     GetAdaptersAddresses(
+///         AF_UNSPEC.0 as u32,
+///         GET_ADAPTERS_ADDRESSES_FLAGS(0),
+///         None,
+///         Some(argument.pointer()),
+///         argument.size(),
+///     )
+/// });
+///
+/// // Convert the return value to an action
+/// let fill_buffer_action = rv.to_result(&mut argument)?;
+/// ```
+///
+/// [`GetLogicalProcessorInformationEx`][3] is also a good example for [`RvIsError`].  A complete
+/// example is available on [GitHub][4].
+///
+/// [gc]: https://crates.io/crates/grob
+/// [1]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/NetworkManagement/IpHelper/fn.GetAdaptersAddresses.html
+/// [2]: https://github.com/Coding-Badly/grob/blob/main/grob/examples/adapters-addresses-full.rs
+/// [3]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/System/SystemInformation/fn.GetLogicalProcessorInformationEx.html
+/// [4]: https://github.com/Coding-Badly/grob/blob/main/grob/examples/processor-full.rs
+///
 #[derive(Debug)]
 pub struct RvIsError(WIN32_ERROR);
 
@@ -55,6 +129,32 @@ impl RvIsError {
 }
 
 impl ToResult for RvIsError {
+    /// Determines what should happen based on the value returned from the operating system and the
+    /// [`Argument`] state.
+    ///
+    /// If the return value is a [`u32`], like [`GetAdaptersAddresses`][2], the value is used as-is.
+    ///
+    /// For operating system functions that return a [`BOOL`], like
+    /// [`GetLogicalProcessorInformationEx`][3], the error code [`NO_ERROR`] is used when [`TRUE`]
+    /// is returned.  The return value from [`GetLastError`] is used when [`TRUE`] is not returned.
+    ///
+    /// Operating system error codes are translated by this method to...
+    ///
+    /// | Error Code                    | [`FillBufferResult`]             |
+    /// | ----------------------------- | -------------------------------- |
+    /// | [`NO_ERROR`]                  | Ok([`FillBufferAction::Commit`]) |
+    /// | [`ERROR_INSUFFICIENT_BUFFER`] | Ok([`FillBufferAction::Grow`])   |
+    /// | [`ERROR_BUFFER_OVERFLOW`]     | Ok([`FillBufferAction::Grow`])   |
+    /// | [`ERROR_NO_DATA`]             | Ok([`FillBufferAction::NoData`]) |
+    /// | all other values              | Err(/\*osecctsie\*/)             |
+    ///
+    /// Where /\*osecctsie\*/ is the operating system error code converted to a [`std::io::Error`]
+    /// by calling [`from_raw_os_error`][1].
+    ///
+    /// [1]: std::io::Error::from_raw_os_error
+    /// [2]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/NetworkManagement/IpHelper/fn.GetAdaptersAddresses.html
+    /// [3]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/System/SystemInformation/fn.GetLogicalProcessorInformationEx.html
+    ///
     fn to_result(&self, needed_size: &mut dyn NeededSize) -> FillBufferResult {
         let rv = match self.0 {
             NO_ERROR => Ok(FillBufferAction::Commit),
@@ -87,6 +187,47 @@ impl From<u32> for RvIsError {
     }
 }
 
+/// Wrapper for the return value from a Windows API call that returns the number of elements stored
+///
+/// The primary purpose of [`RvIsSize`] is to convert the number of elements stored and the value
+/// returned from [`GetLastError`] into a [`FillBufferResult`].  The [`FillBufferResult`] is either
+/// Ok([`FillBufferAction`]) or an operating system error (Err([`std::io::Error`])) that is not
+/// handled by the [grob crate][gc].
+///
+/// # Examples
+///
+/// [`GetModuleFileNameW`][1] is a good example for [`RvIsSize`].  A complete example is
+/// available on [GitHub][2].
+///
+/// ``` ignore
+/// let mut argument = growable_buffer.argument();
+/// let rv = unsafe { GetModuleFileNameW(HMODULE(0), argument.as_mut_slice()) };
+/// let rv: RvIsSize = rv.into();
+/// let result = rv.to_result(&mut argument);
+/// match result? {
+///     FillBufferAction::Commit => {
+///         argument.commit();
+///         break;
+///     }
+///     FillBufferAction::Grow => {
+///         argument.grow();
+///     }
+///     FillBufferAction::NoData => {
+///         argument.commit_no_data();
+///         break;
+///     }
+/// }
+/// ```
+///
+/// [`GetSystemWindowsDirectoryW`][3] is also a good example for [`RvIsError`].  A complete example
+/// is available on [GitHub][4].
+///
+/// [gc]: https://crates.io/crates/grob
+/// [1]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/System/LibraryLoader/fn.GetModuleFileNameW.html
+/// [2]: https://github.com/Coding-Badly/grob/blob/main/grob/examples/module-filename-full.rs
+/// [3]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/System/SystemInformation/fn.GetSystemWindowsDirectoryW.html
+/// [4]: https://github.com/Coding-Badly/grob/blob/main/grob/examples/version-info-generic.rs
+///
 #[derive(Debug)]
 pub struct RvIsSize(u32, WIN32_ERROR);
 
@@ -100,6 +241,31 @@ impl RvIsSize {
 }
 
 impl ToResult for RvIsSize {
+    /// Determines what should happen based on the value returned from the operating system and the
+    /// [`Argument`] state.
+    ///
+    /// The return value from the operating system is expected to be the number of elements stored.
+    ///
+    /// The return value from [`GetLastError`] is captured when [`RvIsSize`] is created.  It's
+    /// important to "clear" the error value by calling `SetLastError(NO_ERROR)` just before calling
+    /// the Windows API function then creating an [`RvIsSize`] right after calling the Windows API
+    /// function.  This crate handles all of that when used as documented.
+    ///
+    /// The various states are translated as...
+    ///
+    /// | Return Value       | Capacity | [`GetLastError`]              | [`FillBufferResult`]             |
+    /// | ------------------ | -------- | ----------------------------- | -------------------------------- |
+    /// | zero               | n/a      | [`NO_ERROR`]                  | Ok([`FillBufferAction::NoData`]) |
+    /// | zero               | zero     | n/a                           | Ok([`FillBufferAction::Grow`])   |
+    /// | zero               | not zero | all other values              | Err(/\*osecctsie\*/)             |
+    /// | > 0 && < Capacity  | > 0      | n/a                           | Ok([`FillBufferAction::Commit`]) |
+    /// | > 0 && == Capacity | > 0      | [`ERROR_INSUFFICIENT_BUFFER`] | Ok([`FillBufferAction::Grow`])   |
+    ///
+    /// Where /\*osecctsie\*/ is the operating system error code converted to a [`std::io::Error`]
+    /// by calling [`from_raw_os_error`][1].
+    ///
+    /// [1]: std::io::Error::from_raw_os_error
+    ///
     fn to_result(&self, needed_size: &mut dyn NeededSize) -> FillBufferResult {
         let ns = needed_size.needed_size();
         // Either an error or success with nothing stored
@@ -127,7 +293,7 @@ impl ToResult for RvIsSize {
             Ok(FillBufferAction::Grow)
         // At this point the API function returned precisely the buffer capacity and set the last
         // error to something other than ERROR_INSUFFICIENT_BUFFER.  Or, the API function returned a
-        // value greater than the capacity.  Those are both undocument behaviour.
+        // value greater than the capacity.  Those are both undocument behaviours.
         } else {
             unreachable!()
         }
@@ -156,9 +322,28 @@ impl RawToInternal for PWSTR {
 }
 
 impl<'sb> FrozenBuffer<'sb, u16> {
+    /// Convert the data in the buffer to a [`PathBuf`].
+    ///
+    /// This method passes the return value from [`to_os_string`](FrozenBuffer::to_os_string) to
+    /// `PathBuf::from`.
+    ///
+    /// If the call to [`read_buffer`](FrozenBuffer::read_buffer) returns a [`null`](std::ptr::null)
+    /// pointer or zero elements were stored in the buffer then [`None`] is returned from this
+    /// method.
+    ///
+    /// A `NULL` terminator, if present, is not included in the returned [`PathBuf`].
+    ///
     pub fn to_path_buf(&self) -> Option<PathBuf> {
         self.to_os_string().map(PathBuf::from)
     }
+    /// Convert the data in the buffer to an [`OsString`].
+    ///
+    /// If the call to [`read_buffer`](FrozenBuffer::read_buffer) returns a [`null`](std::ptr::null)
+    /// pointer or zero elements were stored in the buffer then [`None`] is returned from this
+    /// method.
+    ///
+    /// A `NULL` terminator, if present, is not included in the returned [`OsString`].
+    ///
     pub fn to_os_string(&self) -> Option<OsString> {
         let (p, s) = self.read_buffer();
         if s == 0 {
@@ -176,6 +361,24 @@ impl<'sb> FrozenBuffer<'sb, u16> {
             None
         }
     }
+    /// Try converting the data in the buffer to a [`String`].
+    ///
+    /// If `lossy_ok` is [`true`] then the call cannot fail.  `Ok(possibly_lossy_string)` is always
+    /// returned.  Any invalid characters are replaced according to the
+    /// [`to_string_lossy`](std::ffi::OsStr::to_string_lossy) documentation.
+    ///
+    /// If `lossy_ok` is [`false`] and the buffer contains a valid UTF-8 string then
+    /// `Ok(converted_string)` is returned.
+    ///
+    /// If `lossy_ok` is [`false`] and the buffer contains invalid UTF-8 characters then
+    /// `Err(raw_os_string)` is returned where `raw_os_string` is an [`OsString`] returned from
+    /// [`to_os_string`](FrozenBuffer::to_os_string)
+    ///
+    /// A `NULL` terminator, if present, is not included in the returned value.
+    ///
+    /// If the call to [`to_os_string`](FrozenBuffer::to_os_string) returns [`None`] then a zero
+    /// length / blank string is returned.
+    ///
     pub fn to_string(&self, lossy_ok: bool) -> Result<String, OsString> {
         match self.to_os_string() {
             Some(s) => {

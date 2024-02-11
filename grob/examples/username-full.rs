@@ -13,53 +13,18 @@
 // limitations under the License.
 
 use windows::core::PWSTR;
-use windows::Win32::NetworkManagement::NetManagement::UNLEN;
 use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
 use grob::{
-    FillBufferAction, GrowStrategy, GrowableBuffer, RvIsError, StackBuffer, ToResult, WriteBuffer,
-    ALIGNMENT, SIZE_OF_WCHAR,
+    FillBufferAction, GrowForStaticText, GrowableBuffer, RvIsError, StackBuffer, ToResult,
+    WriteBuffer, CAPACITY_FOR_NAMES,
 };
-
-const CAPACITY_FOR_NAMES: usize = ((UNLEN + 1) as usize * SIZE_OF_WCHAR as usize) + ALIGNMENT;
-
-struct GrowByBumpToNibble {}
-
-impl GrowByBumpToNibble {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-impl GrowStrategy for GrowByBumpToNibble {
-    fn next_capacity(&self, _tries: usize, current_size: u32, desired_size: u32) -> u32 {
-        // With desired_size a u32, doing the math with u64 prevents all overlow possibilities.
-        // Determine the ceiling of the current number of nibbles after bumping to include space for
-        // a NULL terminator (just in case of an API bug).
-        let bumped_nibbles = (desired_size as u64 + SIZE_OF_WCHAR as u64 + 15) / 16;
-        // Convert that to bytes
-        let bytes = bumped_nibbles * 16;
-        // Use the largest of the bumped nibbles value or the desired_size.
-        // Limit that to u32::MAX.
-        let target = bytes.max(desired_size as u64).min(u32::MAX as u64) as u32;
-        // The target has to be greater than the current_size or something is terribly wrong and
-        // is going to get worse.
-        assert!(target > current_size);
-        // Output some stuff so the human knows what's happening.
-        println!(
-            "{:>2} {:>3} {:>3} {:>3}",
-            _tries, current_size, desired_size, target
-        );
-        // Return the new target.
-        target
-    }
-}
 
 fn common(initial_buffer: &mut dyn WriteBuffer) -> Result<(), Box<dyn std::error::Error>> {
     // Our grow strategy is take what the operating system wants, bump a little to ensure there's
     // space for a NULL terminator then adjust to the nearest higher 16 byte boundary to try to
     // reduce heap fragmentation.
-    let grow_strategy = GrowByBumpToNibble::new();
+    let grow_strategy = GrowForStaticText::new();
 
     // Loop until the call to GetUserNameW fails with an error or succeeds because the buffer has
     // enough space.

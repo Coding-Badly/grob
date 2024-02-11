@@ -18,22 +18,66 @@ use std::mem::MaybeUninit;
 #[cfg(windows)]
 pub(crate) mod os {
     use windows::Win32::System::SystemServices::MEMORY_ALLOCATION_ALIGNMENT;
+
+    /// Buffer alignment that works for all Windows API calls; alignment used for all grob buffers
+    ///
+    /// This value is unlikely to be useful outside of the [grob crate][gc].  The value is taken
+    /// from the windows crate ([`MEMORY_ALLOCATION_ALIGNMENT`]) and cast as [`usize`] to make it
+    /// more Rust friendly.
+    ///
+    /// [gc]: https://crates.io/crates/grob
+    ///
     pub const ALIGNMENT: usize = MEMORY_ALLOCATION_ALIGNMENT as usize;
 }
 
 #[cfg(not(windows))]
 pub(crate) mod os {
+    /// Buffer alignment that works for all operating system calls (experimental)
     pub const ALIGNMENT: usize = 8;
 }
 
 use crate::traits::{ReadBuffer, WriteBuffer};
 
+/// Initial buffer placed on the stack to improve performance.
+///
+/// The [grob crate][gc] supports an initial [`StackBuffer`] to improve performance.  If the
+/// [`StackBuffer`] is too small then [`GrowableBuffer`][gb] switches to a heap buffer.
+///
+/// A [`StackBuffer`] can be zero-sized.  When the [`StackBuffer`] is zero-sized,
+/// [`GrowableBuffer`][gb] makes an operating system call to determine a best guess for the initial
+/// heap buffer size.
+///
+/// Ideally, a [`StackBuffer`] is sized so switching to a heap buffer is rarely necessary.  The
+/// [grob crate][gc] provides two constants to help avoid switching to a heap buffer:
+/// [`CAPACITY_FOR_NAMES`][cfn] and [`CAPACITY_FOR_PATHS`][cfp]
+///
+/// # Examples
+///
+/// ``` ignore
+///     let mut initial_buffer = StackBuffer::<CAPACITY_FOR_PATHS>::new();
+///     let grow_strategy = GrowForStoredIsReturned::<CAPACITY_FOR_PATHS>::new();
+///     let mut growable_buffer = GrowableBuffer::<u16, PWSTR>::new(initial_buffer, &grow_strategy);
+///     loop {
+///         let mut argument = growable_buffer.argument();
+///         let rv = unsafe { GetModuleFileNameW(HMODULE(0), argument.as_mut_slice()) };
+///         let rv: RvIsSize = rv.into();
+///         let result = rv.to_result(&mut argument);
+///         // react to result
+///     }
+/// ```
+///
+/// [gc]: https://crates.io/crates/grob
+/// [gb]: crate::GrowableBuffer
+/// [cfn]: crate::CAPACITY_FOR_NAMES
+/// [cfp]: crate::CAPACITY_FOR_PATHS
+///
 pub struct StackBuffer<const CAPACITY: usize> {
     final_size: u32,
     stack: MaybeUninit<[u8; CAPACITY]>,
 }
 
 impl<const CAPACITY: usize> StackBuffer<CAPACITY> {
+    /// Constructs a stack buffer of size `CAPACITY`.
     pub fn new() -> Self {
         Self {
             final_size: 0,
@@ -54,13 +98,6 @@ impl<const CAPACITY: usize> StackBuffer<CAPACITY> {
         let offset = (p as usize) % os::ALIGNMENT;
         (unsafe { p.add(offset) }, offset)
     }
-    fn capacity(&self) -> u32 {
-        if CAPACITY >= os::ALIGNMENT {
-            (CAPACITY - self.offset()).try_into().unwrap()
-        } else {
-            0
-        }
-    }
     fn offset(&self) -> usize {
         let p = self.stack.as_ptr() as *const u8;
         (p as usize) % os::ALIGNMENT
@@ -68,12 +105,23 @@ impl<const CAPACITY: usize> StackBuffer<CAPACITY> {
 }
 
 impl<const CAPACITY: usize> Default for StackBuffer<CAPACITY> {
+    /// Constructs a stack buffer of size `CAPACITY`.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl<const CAPACITY: usize> ReadBuffer for StackBuffer<CAPACITY> {
+    /// Returns a read-only pointer to the buffer and the number of elements stored in the buffer.
+    ///
+    /// If the buffer is too small to meet the alignment needed by the operating system then
+    /// `(none, 0)` is returned.
+    ///
+    /// `read_buffer` is used by [`FrozenBuffer`][fb] to provide access to the data stored by the
+    /// operating system.
+    ///
+    /// [fb]: crate::FrozenBuffer
+    ///
     fn read_buffer(&self) -> (Option<*const u8>, u32) {
         if CAPACITY >= os::ALIGNMENT {
             (Some(self.as_ptr().0), self.final_size)
@@ -84,9 +132,26 @@ impl<const CAPACITY: usize> ReadBuffer for StackBuffer<CAPACITY> {
 }
 
 impl<const CAPACITY: usize> WriteBuffer for StackBuffer<CAPACITY> {
+    /// Returns the [`ReadBuffer`] for this [`StackBuffer`].
+    ///
+    /// `as_read_buffer` is used internally when converting to a [`FrozenBuffer`][fb].
+    ///
+    /// [fb]: crate::FrozenBuffer
+    ///
     fn as_read_buffer(&self) -> &dyn ReadBuffer {
         self as &dyn ReadBuffer
     }
+    /// Returns the available capacity for this [`StackBuffer`].
+    ///
+    /// The operating system expects buffers to be aligned on [`ALIGNMENT`][a] boundaries.  Rust
+    /// guarentees alignment to the size of each array element.  Internally [`StackBuffer`] uses an
+    /// array of [`u8`] so the buffer is aligned to the nearest byte (not aligned).  `capacity` may
+    /// be reduced so a correctly aligned buffer can be presented to the operating system.  In other
+    /// words, a 256 byte buffer may be reduced to a capacity of 241 bytes
+    /// (256 - ([`ALIGNMENT`][a] - 1)).
+    ///
+    /// [a]: os::ALIGNMENT
+    ///
     fn capacity(&self) -> u32 {
         if CAPACITY >= os::ALIGNMENT {
             (CAPACITY - self.offset()).try_into().unwrap()
@@ -94,10 +159,26 @@ impl<const CAPACITY: usize> WriteBuffer for StackBuffer<CAPACITY> {
             0
         }
     }
+    /// Called from [`freeze`][f] to set the amount of data provided by the operating system.
+    ///
+    /// When the buffer used by [`GrowableBuffer`][gb] is turned into a [`FrozenBuffer`][fb] the
+    /// amount of data stored by the operating system is included.  This allows the stored data to
+    /// be safely accessed.
+    ///
+    /// [f]: crate::GrowableBuffer::freeze
+    /// [gb]: crate::GrowableBuffer
+    /// [fb]: crate::FrozenBuffer
+    ///
     fn set_final_size(&mut self, final_size: u32) {
-        assert!(final_size <= self.capacity());
         self.final_size = final_size;
     }
+    /// Returns a pointer and size allowing write access to the buffer.
+    ///
+    /// This method is used indirectly by [`Argument`][a] to provide suitable arguments for an
+    /// operating system call.
+    ///
+    /// [a]: crate::Argument
+    ///
     fn write_buffer(&mut self) -> (*mut u8, u32) {
         if CAPACITY >= os::ALIGNMENT {
             let (p, o) = self.as_mut_ptr();
@@ -129,9 +210,6 @@ impl HeapBuffer {
             pointer,
         }
     }
-    fn capacity(&self) -> u32 {
-        self.capacity
-    }
 }
 
 impl Drop for HeapBuffer {
@@ -146,10 +224,6 @@ impl HeapBuffer {
     pub(crate) fn read_buffer(&self) -> (Option<*const u8>, u32) {
         assert!(self.final_size > 0);
         (Some(self.pointer), self.final_size)
-    }
-    pub(crate) fn set_final_size(&mut self, final_size: u32) {
-        assert!(final_size <= self.capacity());
-        self.final_size = final_size;
     }
 }
 
@@ -168,7 +242,6 @@ impl WriteBuffer for HeapBuffer {
         self.capacity
     }
     fn set_final_size(&mut self, final_size: u32) {
-        assert!(final_size <= self.capacity());
         self.final_size = final_size;
     }
     fn write_buffer(&mut self) -> (*mut u8, u32) {

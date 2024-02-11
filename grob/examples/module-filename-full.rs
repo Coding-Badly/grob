@@ -14,57 +14,42 @@
 
 use windows::core::PWSTR;
 use windows::Win32::Foundation::HMODULE;
-use windows::Win32::Foundation::MAX_PATH;
 use windows::Win32::System::LibraryLoader::GetModuleFileNameW;
 
 use grob::{
-    FillBufferAction, GrowStrategy, GrowableBuffer, RvIsSize, StackBuffer, ToResult, WriteBuffer,
-    ALIGNMENT, SIZE_OF_WCHAR,
+    FillBufferAction, GrowForStoredIsReturned, GrowStrategy, GrowableBuffer, RvIsSize, StackBuffer,
+    ToResult, WriteBuffer, CAPACITY_FOR_PATHS,
 };
 
-const CAPACITY_FOR_PATHS: usize = (MAX_PATH as usize * SIZE_OF_WCHAR as usize) + ALIGNMENT;
-
-struct GrowByDoubleNibbles {
-    floor: u64,
+struct PrintNextCapacity {
+    wrapped: Box<dyn GrowStrategy>,
 }
 
-impl GrowByDoubleNibbles {
-    fn new(floor: u32) -> Self {
-        Self {
-            floor: floor.into(),
-        }
+impl PrintNextCapacity {
+    fn new<GS>(wrapped: GS) -> Self
+    where
+        GS: GrowStrategy + 'static,
+    {
+        let wrapped = Box::new(wrapped);
+        Self { wrapped }
     }
 }
-impl GrowStrategy for GrowByDoubleNibbles {
-    fn next_capacity(&self, _tries: usize, current_size: u32, desired_size: u32) -> u32 {
-        // With current_size a u32, doing the math with u64 prevents all overlow possibilities.
-        // Determine the ceiling of the current number of nibbles
-        let nibbles = (current_size as u64 + 15) / 16;
-        // Convert that to bytes doubled
-        let doubled_bytes = nibbles * 16 * 2;
-        // Use the largest of the doubled value, desired_size, or the preconfigured floor.
-        // Limit that to u32::MAX.
-        let target = doubled_bytes
-            .max(desired_size as u64)
-            .max(self.floor)
-            .min(u32::MAX as u64) as u32;
-        // The target has to be greater than the current_size or something is terribly wrong and
-        // is going to get worse.
-        assert!(target > current_size);
-        // Output some stuff so the human knows what's happening.
+
+impl GrowStrategy for PrintNextCapacity {
+    fn next_capacity(&self, tries: usize, desired_capacity: u32) -> u32 {
+        let rv = self.wrapped.next_capacity(tries, desired_capacity);
         println!(
-            "{:>2} {:>3} {:>3} {:>3}",
-            _tries, current_size, desired_size, target
+            "next_capacity(tries={}, desired_capacity={}) = {}",
+            tries, desired_capacity, rv
         );
-        // Return the new target.
-        target
+        rv
     }
 }
 
 fn common(initial_buffer: &mut dyn WriteBuffer) -> Result<(), Box<dyn std::error::Error>> {
     // This example is meant to illustrate the difference between a well sized stack buffer and a
     // progressively larger heap buffer.  Using a floor would hide the comparison.
-    let grow_strategy = GrowByDoubleNibbles::new(0);
+    let grow_strategy = PrintNextCapacity::new(GrowForStoredIsReturned::<0>::new());
 
     // Loop until the call to GetModuleFileNameW fails with an error or succeeds because the buffer
     // has enough space.
@@ -74,7 +59,6 @@ fn common(initial_buffer: &mut dyn WriteBuffer) -> Result<(), Box<dyn std::error
         let rv = unsafe { GetModuleFileNameW(HMODULE(0), argument.as_mut_slice()) };
         let rv: RvIsSize = rv.into();
         let result = rv.to_result(&mut argument);
-        // nfx: Move this code to an argument.appyly(result?) that returns true if we should break.
         match result? {
             FillBufferAction::Commit => {
                 argument.commit();
@@ -108,9 +92,11 @@ fn start_with_stack_buffer() -> Result<(), Box<dyn std::error::Error>> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
+    println!("Try with a reasonably sized stack buffer...");
     start_with_stack_buffer()?;
     println!();
 
+    println!("Try with a zero sized stack buffer and no floor...");
     just_heap_buffer()?;
     println!();
 

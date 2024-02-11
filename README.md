@@ -6,6 +6,7 @@ grob is short for growable buffer.
 
 Many Windows API functions require the caller to provide a buffer.  The pattern goes something like
 this...
+
 * Call the function with an initial buffer and size
 * If that works then process the returned data
 * If that does not work because the buffer is too small then create a larger buffer and try again

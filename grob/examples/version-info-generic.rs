@@ -19,9 +19,11 @@ use std::path::{Path, PathBuf};
 
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, FALSE};
-use windows::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO};
+use windows::Win32::Storage::FileSystem::{
+    GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
+};
 use windows::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
- 
+
 use grob::{winapi_large_binary, winapi_path_buf, RvIsError, RvIsSize};
 
 struct ApiString(Vec<u16>);
@@ -54,13 +56,16 @@ struct PeVersion {
 
 impl Display for PeVersion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let txt = format!("{}.{}.{}.{}", self.major, self.minor, self.patch, self.build);
+        let txt = format!(
+            "{}.{}.{}.{}",
+            self.major, self.minor, self.patch, self.build
+        );
         f.pad(&txt)
     }
 }
 
 impl From<(u32, u32)> for PeVersion {
-    fn from(value:(u32, u32)) -> Self {
+    fn from(value: (u32, u32)) -> Self {
         Self {
             major: ((value.0 >> 16) & 0xFFFF) as u16,
             minor: ((value.0 >> 0) & 0xFFFF) as u16,
@@ -75,8 +80,9 @@ impl From<*const VS_FIXEDFILEINFO> for PeVersion {
         assert!(unsafe { (*(value as *const VS_FIXEDFILEINFO)).dwSignature } == 0xFEEF04BD);
         (
             unsafe { (*(value as *const VS_FIXEDFILEINFO)).dwProductVersionMS },
-            unsafe { (*(value as *const VS_FIXEDFILEINFO)).dwProductVersionLS }
-        ).into()
+            unsafe { (*(value as *const VS_FIXEDFILEINFO)).dwProductVersionLS },
+        )
+            .into()
     }
 }
 
@@ -87,7 +93,7 @@ where
     winapi_large_binary(
         |argument| {
             let a: ApiString = path.as_ref().into();
-            let needed = unsafe{GetFileVersionInfoSizeW(a.ffi(), None)};
+            let needed = unsafe { GetFileVersionInfoSizeW(a.ffi(), None) };
             if needed == 0 {
                 return RvIsError::new(FALSE);
             }
@@ -96,7 +102,7 @@ where
                 unsafe { *argument.size() = needed };
                 return RvIsError::new(ERROR_INSUFFICIENT_BUFFER.0);
             }
-            RvIsError::new(unsafe{GetFileVersionInfoW(a.ffi(), 0, s, argument.pointer())})
+            RvIsError::new(unsafe { GetFileVersionInfoW(a.ffi(), 0, s, argument.pointer()) })
         },
         |frozen_buffer| {
             if let Some(p) = frozen_buffer.pointer() {
@@ -112,7 +118,7 @@ where
             } else {
                 Ok(None)
             }
-        }
+        },
     )
 }
 

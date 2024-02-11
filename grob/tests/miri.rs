@@ -14,7 +14,9 @@
 
 mod large_binary {
     mod rv_is_error {
-        use windows::Win32::Foundation::{ERROR_ADDRESS_NOT_ASSOCIATED, ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS};
+        use windows::Win32::Foundation::{
+            ERROR_ADDRESS_NOT_ASSOCIATED, ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS,
+        };
 
         use grob::{winapi_large_binary, RvIsError};
 
@@ -33,7 +35,8 @@ mod large_binary {
                     assert!(frozen_buffer.size() == 0);
                     Ok(())
                 },
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         fn write_one_byte(data: Option<*mut u8>, size: *mut u32) -> u32 {
@@ -60,12 +63,15 @@ mod large_binary {
                     assert!(unsafe { *p } == 42);
                     Ok(())
                 },
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         fn grow_then_fill(tries: usize, data: Option<*mut u8>, size: *mut u32) -> u32 {
             if tries == 1 {
-                unsafe { *size += 1; }
+                unsafe {
+                    *size += 1;
+                }
                 ERROR_BUFFER_OVERFLOW.0
             } else {
                 let p = data.unwrap();
@@ -79,19 +85,26 @@ mod large_binary {
         fn full_stack_buffer() {
             winapi_large_binary(
                 |argument| {
-                    RvIsError::new(grow_then_fill(argument.tries(), Some(argument.pointer()), argument.size()))
+                    RvIsError::new(grow_then_fill(
+                        argument.tries(),
+                        Some(argument.pointer()),
+                        argument.size(),
+                    ))
                 },
                 |frozen_buffer| {
                     assert!(frozen_buffer.size() > 0);
                     let p = frozen_buffer.pointer().unwrap();
                     assert!(p != std::ptr::null());
-                    let s = unsafe { std::slice::from_raw_parts(p, frozen_buffer.size().try_into().unwrap()) };
+                    let s = unsafe {
+                        std::slice::from_raw_parts(p, frozen_buffer.size().try_into().unwrap())
+                    };
                     for v in s.into_iter() {
                         assert!(*v == 42);
                     }
                     Ok(())
                 },
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         fn return_error(_tries: usize, _data: Option<*mut u8>, _size: *mut u32) -> u32 {
@@ -102,7 +115,11 @@ mod large_binary {
         fn no_finalize_when_error() {
             match winapi_large_binary(
                 |argument| {
-                    RvIsError::new(return_error(argument.tries(), Some(argument.pointer()), argument.size()))
+                    RvIsError::new(return_error(
+                        argument.tries(),
+                        Some(argument.pointer()),
+                        argument.size(),
+                    ))
                 },
                 |_frozen_buffer| {
                     assert!(false);
@@ -130,7 +147,9 @@ mod small_binary {
     mod rv_is_size {
         use std::mem::size_of;
 
-        use windows::Win32::Foundation::{ERROR_ADDRESS_NOT_ASSOCIATED, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, SetLastError};
+        use windows::Win32::Foundation::{
+            SetLastError, ERROR_ADDRESS_NOT_ASSOCIATED, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS,
+        };
 
         use grob::{winapi_small_binary, RvIsSize};
 
@@ -145,13 +164,16 @@ mod small_binary {
         fn nothing_stored() {
             winapi_small_binary(
                 |argument| {
-                    RvIsSize::new(write_zero_bytes(Some(argument.pointer()), unsafe { *argument.size() } ))
+                    RvIsSize::new(write_zero_bytes(Some(argument.pointer()), unsafe {
+                        *argument.size()
+                    }))
                 },
                 |frozen_buffer| {
                     assert!(frozen_buffer.size() == 0);
                     Ok(())
                 },
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         fn write_one_thing(data: Option<*mut u128>, size: *mut u32) -> u32 {
@@ -174,7 +196,8 @@ mod small_binary {
                     assert!(unsafe { *p } == LARGE_INTEGER);
                     Ok(())
                 },
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         fn grow_then_fill(tries: usize, data: Option<*mut u128>, size: u32) -> u32 {
@@ -197,18 +220,23 @@ mod small_binary {
         fn full_stack_buffer() {
             winapi_small_binary(
                 |argument| {
-                    RvIsSize::new(grow_then_fill(argument.tries(), Some(argument.pointer()), unsafe{*argument.size()}))
+                    RvIsSize::new(grow_then_fill(
+                        argument.tries(),
+                        Some(argument.pointer()),
+                        unsafe { *argument.size() },
+                    ))
                 },
                 |frozen_buffer| {
                     assert!(frozen_buffer.size() > 0);
                     let p = frozen_buffer.pointer().unwrap();
                     assert!(p != std::ptr::null());
-                    assert!(unsafe{*p} == LARGE_INTEGER);
+                    assert!(unsafe { *p } == LARGE_INTEGER);
                     let last = ((frozen_buffer.size() as usize / size_of::<u128>()) - 1) as isize;
-                    assert!(unsafe{*(p.offset(last))} == LARGE_INTEGER);
+                    assert!(unsafe { *(p.offset(last)) } == LARGE_INTEGER);
                     Ok(())
                 },
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         fn return_error(_tries: usize, _data: Option<*mut u8>, _size: u32) -> u32 {
@@ -220,7 +248,11 @@ mod small_binary {
         fn no_finalize_when_error() {
             match winapi_small_binary(
                 |argument| {
-                    RvIsSize::new(return_error(argument.tries(), Some(argument.pointer()), unsafe { *argument.size() }))
+                    RvIsSize::new(return_error(
+                        argument.tries(),
+                        Some(argument.pointer()),
+                        unsafe { *argument.size() },
+                    ))
                 },
                 |_frozen_buffer| {
                     assert!(false);
@@ -249,7 +281,9 @@ mod string {
         use std::os::windows::ffi::OsStrExt;
 
         use windows::core::PWSTR;
-        use windows::Win32::Foundation::{BOOL, ERROR_INSUFFICIENT_BUFFER, FALSE, TRUE, SetLastError};
+        use windows::Win32::Foundation::{
+            SetLastError, BOOL, ERROR_INSUFFICIENT_BUFFER, FALSE, TRUE,
+        };
 
         use grob::{winapi_string, RvIsError};
 
@@ -260,11 +294,11 @@ mod string {
 
         #[test]
         fn nothing_stored() {
-            let s = winapi_string(false,
-                |argument| {
-                    RvIsError::new(write_zero_bytes(argument.pointer(), argument.size()))
-                }
-            ).unwrap().unwrap();
+            let s = winapi_string(false, |argument| {
+                RvIsError::new(write_zero_bytes(argument.pointer(), argument.size()))
+            })
+            .unwrap()
+            .unwrap();
             assert!(s == "");
         }
 
@@ -282,18 +316,20 @@ mod string {
 
         #[test]
         fn terminator_stored() {
-            let s = winapi_string(false,
-                |argument| {
-                    RvIsError::new(write_terminator(argument.pointer(), argument.size()))
-                }
-            ).unwrap().unwrap();
+            let s = winapi_string(false, |argument| {
+                RvIsError::new(write_terminator(argument.pointer(), argument.size()))
+            })
+            .unwrap()
+            .unwrap();
             assert!(s == "");
         }
 
-        const ZATHRAS: [u16; 8] = ['Z' as u16, 'a' as u16, 't' as u16, 'h' as u16, 'r' as u16, 'a' as u16, 's' as u16, 0];
+        const ZATHRAS: [u16; 8] = [
+            'Z' as u16, 'a' as u16, 't' as u16, 'h' as u16, 'r' as u16, 'a' as u16, 's' as u16, 0,
+        ];
 
         fn write_zathras(data: PWSTR, size: *mut u32) -> BOOL {
-            let rv = if unsafe { *size >= ZATHRAS.len() as u32} {
+            let rv = if unsafe { *size >= ZATHRAS.len() as u32 } {
                 unsafe { std::ptr::copy(ZATHRAS.as_ptr(), data.0, ZATHRAS.len()) };
                 TRUE
             } else {
@@ -306,18 +342,18 @@ mod string {
 
         #[test]
         fn try_zathras() {
-            let s = winapi_string(false,
-                |argument| {
-                    RvIsError::new(write_zathras(argument.pointer(), argument.size()))
-                }
-            ).unwrap().unwrap();
+            let s = winapi_string(false, |argument| {
+                RvIsError::new(write_zathras(argument.pointer(), argument.size()))
+            })
+            .unwrap()
+            .unwrap();
             assert!(s == "Zathras");
         }
 
         const INVALID_UNICODE: [u16; 4] = ['a' as u16, 0xD800, 'z' as u16, 0];
 
         fn write_invalid_unicode(data: PWSTR, size: *mut u32) -> BOOL {
-            let rv = if unsafe { *size >= INVALID_UNICODE.len() as u32} {
+            let rv = if unsafe { *size >= INVALID_UNICODE.len() as u32 } {
                 unsafe { std::ptr::copy(INVALID_UNICODE.as_ptr(), data.0, INVALID_UNICODE.len()) };
                 TRUE
             } else {
@@ -330,11 +366,11 @@ mod string {
 
         #[test]
         fn invalid_unicode_dropped() {
-            let s = winapi_string(true,
-                |argument| {
-                    RvIsError::new(write_invalid_unicode(argument.pointer(), argument.size()))
-                }
-            ).unwrap().unwrap();
+            let s = winapi_string(true, |argument| {
+                RvIsError::new(write_invalid_unicode(argument.pointer(), argument.size()))
+            })
+            .unwrap()
+            .unwrap();
             // Rust replaces invalid UTF things with the Unicode Replacement Character U+FFFD.
             let c = "a\u{FFFD}z";
             assert!(s == c);
@@ -342,11 +378,10 @@ mod string {
 
         #[test]
         fn invalid_unicode_fails() {
-            let rv = winapi_string(false,
-                |argument| {
-                    RvIsError::new(write_invalid_unicode(argument.pointer(), argument.size()))
-                }
-            ).unwrap();
+            let rv = winapi_string(false, |argument| {
+                RvIsError::new(write_invalid_unicode(argument.pointer(), argument.size()))
+            })
+            .unwrap();
             match rv {
                 Ok(_) => assert!(false),
                 Err(s) => {
@@ -354,7 +389,10 @@ mod string {
                     let r: Vec<u16> = s.encode_wide().collect();
                     // Compare the two.  r should be one byte shorter (no terminator) so just the
                     // actual characters will end up being compared.
-                    let e = r.into_iter().zip(INVALID_UNICODE).fold(true, |a, v| a && (v.0 == v.1));
+                    let e = r
+                        .into_iter()
+                        .zip(INVALID_UNICODE)
+                        .fold(true, |a, v| a && (v.0 == v.1));
                     assert!(e);
                 }
             }
@@ -364,7 +402,7 @@ mod string {
 
 mod path_buf {
     mod rv_is_size {
-        use windows::Win32::Foundation::{ERROR_SUCCESS, SetLastError};
+        use windows::Win32::Foundation::{SetLastError, ERROR_SUCCESS};
 
         use grob::{winapi_path_buf, RvIsSize};
 
@@ -375,11 +413,10 @@ mod path_buf {
 
         #[test]
         fn nothing_stored() {
-            let path = winapi_path_buf(
-                |argument| {
-                    RvIsSize::new(write_zero_bytes(argument.as_mut_slice()))
-                }
-            ).unwrap();
+            let path = winapi_path_buf(|argument| {
+                RvIsSize::new(write_zero_bytes(argument.as_mut_slice()))
+            })
+            .unwrap();
             assert!(path.as_os_str() == "");
         }
 
@@ -414,11 +451,9 @@ mod path_buf {
 
         #[test]
         fn whatever_stored() {
-            let path = winapi_path_buf(
-                |argument| {
-                    RvIsSize::new(write_path(argument.as_mut_slice()))
-                }
-            ).unwrap();
+            let path =
+                winapi_path_buf(|argument| RvIsSize::new(write_path(argument.as_mut_slice())))
+                    .unwrap();
             let s = path.as_os_str();
             assert!(s == "C:\\Whatever\\a\\b\\c\\d.txt");
             assert!(s.len() == 23);

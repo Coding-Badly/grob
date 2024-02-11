@@ -1,3 +1,5 @@
 Cargo.lock
+.vscode/
 local/
 target/
+trash/

@@ -18,40 +18,11 @@ use windows::Win32::NetworkManagement::IpHelper::IP_ADAPTER_ADDRESSES_LH;
 use windows::Win32::Networking::WinSock::AF_UNSPEC;
 
 use grob::{
-    GrowStrategy, GrowableBuffer, RvIsError, StackBuffer, ToResult, WriteBuffer, ALIGNMENT,
+    GrowToNearestQuarterKibi, GrowableBuffer, RvIsError, StackBuffer, ToResult, WriteBuffer,
 };
 
-struct GrowByQuarterKibi {}
-
-impl GrowByQuarterKibi {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-impl GrowStrategy for GrowByQuarterKibi {
-    fn next_capacity(&self, tries: usize, current_size: u32, desired_size: u32) -> u32 {
-        // With desired_size a u32, doing the math with u64 prevents all overlow possibilities.
-        // Determine the ceiling of the current number of quarter kibis plus some for alignment.
-        let quarter_kibis = (desired_size as u64 + 255 + ALIGNMENT as u64) / 256;
-        // Convert to bytes
-        let bytes = quarter_kibis * 256;
-        // Limit the target to a value that fits in a u32.
-        let target = bytes.min(u32::MAX as u64) as u32;
-        // The target has to be greater than the current_size or something is terribly wrong and
-        // is going to get worse.
-        assert!(target > current_size);
-        // Output some stuff so the human knows what's happening.
-        println!(
-            "{:>2} {:>3} {:>3} {:>3}",
-            tries, current_size, desired_size, target
-        );
-        target
-    }
-}
-
 fn common(initial_buffer: &mut dyn WriteBuffer) -> Result<(), Box<dyn std::error::Error>> {
-    let grow_strategy = GrowByQuarterKibi::new();
+    let grow_strategy = GrowToNearestQuarterKibi::new();
 
     // Loop until the call to GetAdaptersAddresses fails with an error or succeeds because the
     // buffer has enough space.

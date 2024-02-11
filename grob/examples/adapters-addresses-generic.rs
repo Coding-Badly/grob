@@ -19,7 +19,7 @@ use windows::Win32::Networking::WinSock::AF_UNSPEC;
 use grob::{winapi_large_binary, RvIsError};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    winapi_large_binary(
+    let mut names = winapi_large_binary(
         |argument| {
             RvIsError::new(unsafe {
                 GetAdaptersAddresses(
@@ -32,14 +32,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
         },
         |frozen_buffer| {
+            let mut rv = Vec::new();
             if let Some(mut p) = frozen_buffer.pointer() {
                 while p != std::ptr::null() {
-                    println!("FriendlyName = {}", unsafe { (*p).FriendlyName.display() });
+                    rv.push(format!("{}", unsafe { (*p).FriendlyName.display() }));
                     p = unsafe { (*p).Next };
                 }
             }
-            Ok(())
+            Ok(rv)
         },
     )?;
+    names.sort();
+    println!("Names...");
+    for name in names.into_iter() {
+        println!("  {}", name);
+    }
     Ok(())
 }
