@@ -1,6 +1,7 @@
 # Changelog
 
 ## grob 0.1.2 (2024-02-11)
+[v0.1.1...v0.1.2](https://github.com/Coding-Badly/grob/compare/v0.1.1...v0.1.2)
 
 ### Added
 
