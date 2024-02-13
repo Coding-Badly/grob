@@ -154,6 +154,7 @@ mod small_binary {
         use grob::{winapi_small_binary, RvIsSize};
 
         const LARGE_INTEGER: u128 = 12345678901234567890123456789012345678_u128;
+        const SIZE_OF_U128: u32 = size_of::<u128>() as u32;
 
         fn write_zero_bytes(_data: Option<*mut u128>, _size: u32) -> u32 {
             unsafe { SetLastError(ERROR_SUCCESS) };
@@ -177,10 +178,10 @@ mod small_binary {
         }
 
         fn write_one_thing(data: Option<*mut u128>, size: *mut u32) -> u32 {
-            if unsafe { *size } > 0 {
+            if unsafe { *size } > SIZE_OF_U128 {
                 unsafe { *(data.unwrap()) = LARGE_INTEGER };
             }
-            size_of::<u128>().try_into().unwrap()
+            SIZE_OF_U128
         }
 
         #[test]
@@ -457,6 +458,92 @@ mod path_buf {
             let s = path.as_os_str();
             assert!(s == "C:\\Whatever\\a\\b\\c\\d.txt");
             assert!(s.len() == 23);
+        }
+    }
+}
+
+mod straight_to_heap {
+    mod rv_is_error {
+        use std::mem::size_of;
+
+        use windows::Win32::Foundation::{
+            ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS,
+        };
+
+        use grob::{GrowableBuffer, GrowForSmallBinary, RvIsError, StackBuffer, ToResult};
+
+        const SIZE_OF_U128: u32 = size_of::<u128>() as u32;
+        const LARGE_INTEGER: u128 = 12345678901234567890123456789012345678_u128;
+
+        pub unsafe fn mimic_os(buffer: Option<*mut u128>, size: *mut u32) -> u32 {
+            let available = *size;
+            *size = SIZE_OF_U128;
+            if available >= SIZE_OF_U128 {
+                if let Some(buffer) = buffer {
+                    *buffer = LARGE_INTEGER;
+                    ERROR_SUCCESS.0
+                } else {
+                    ERROR_BUFFER_OVERFLOW.0
+                }
+            } else {
+                ERROR_BUFFER_OVERFLOW.0
+            }
+        }
+
+        #[test]
+        fn zero_sized_stack_buffer() {
+            let mut initial_buffer = StackBuffer::<0>::new();
+            let grow_strategy = GrowForSmallBinary::new();
+            let mut growable_buffer = GrowableBuffer::<u128,*mut u128>::new(
+                &mut initial_buffer, &grow_strategy);
+            loop {
+                let mut argument = growable_buffer.argument();
+                let rv = RvIsError::new(unsafe {
+                    mimic_os(Some(argument.pointer()), argument.size())
+                });
+                let result = rv.to_result(&mut argument).unwrap();
+                if argument.apply(result) {
+                    break;
+                }
+            }
+            let frozen_buffer = growable_buffer.freeze();
+            assert!(frozen_buffer.size() == SIZE_OF_U128);
+            let p = frozen_buffer.pointer().unwrap();
+            assert!(p != std::ptr::null());
+            assert!(unsafe { *p } == LARGE_INTEGER);
+        }
+    }
+
+    mod rv_is_size {
+
+        use windows::core::PWSTR;
+
+        use grob::{GrowForStoredIsReturned, GrowableBuffer, RvIsSize, StackBuffer, ToResult, CAPACITY_FOR_PATHS};
+
+        pub unsafe fn mimic_os(lpfilename: &mut [u16]) -> u32 {
+            if lpfilename.len() >= 2 {
+                lpfilename[0] = '?' as u16;
+                lpfilename[1] = 0;
+                2
+            } else {
+                0
+            }
+        }
+
+        #[test]
+        fn zero_sized_stack_buffer() {
+            let mut initial_buffer = StackBuffer::<0>::new();
+            const CFP: u64 = CAPACITY_FOR_PATHS as u64;
+            let grow_strategy = GrowForStoredIsReturned::<CFP>::new();
+            let mut growable_buffer = GrowableBuffer::<u16, PWSTR>::new(&mut initial_buffer, &grow_strategy);
+            loop {
+                let mut argument = growable_buffer.argument();
+                let rv = RvIsSize::new( unsafe { mimic_os(argument.as_mut_slice()) } );
+                let result = rv.to_result(&mut argument).unwrap();
+                if argument.apply(result) {
+                    break;
+                }
+            }
         }
     }
 }

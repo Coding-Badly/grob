@@ -98,6 +98,9 @@ where
 /// This example returns the maximum processor count for the first processor group.
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
 /// use grob::{winapi_small_binary, RvIsError};
 ///
 /// use windows::Win32::System::SystemInformation::{GetLogicalProcessorInformationEx, RelationGroup};
@@ -142,6 +145,7 @@ where
 ///     }
 ///     Ok(())
 /// }
+/// # }
 /// ```
 ///
 /// [e]: crate::RvIsError
@@ -189,6 +193,9 @@ where
 /// [`GetAdaptersAddresses`][gaa] then prints those names.
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
 /// use windows::Win32::{
 ///     NetworkManagement::IpHelper::{GetAdaptersAddresses, GET_ADAPTERS_ADDRESSES_FLAGS},
 ///     Networking::WinSock::AF_UNSPEC,
@@ -227,6 +234,7 @@ where
 ///     }
 ///     Ok(())
 /// }
+/// # }
 /// ```
 ///
 /// [e]: crate::RvIsError
@@ -274,6 +282,9 @@ where
 /// [gm]: https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/System/LibraryLoader/fn.GetModuleFileNameW.html
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
 /// use windows::Win32::Foundation::HMODULE;
 /// use windows::Win32::System::LibraryLoader::GetModuleFileNameW;
 ///
@@ -286,6 +297,7 @@ where
 ///     println!("GetModuleFileNameW returned {}", path.display());
 ///     Ok(())
 /// }
+/// # }
 /// ```
 ///
 /// This example prints the full path to the Windows system directory ([`GetSystemWindowsDirectoryW`][sd]).
@@ -293,6 +305,9 @@ where
 /// [sd]: https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemwindowsdirectoryw
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
 /// use std::path::PathBuf;
 ///
 /// use windows::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
@@ -309,6 +324,7 @@ where
 ///     println!("{:?}", get_windows_system_dir());
 ///     Ok(())
 /// }
+/// # }
 /// ```
 ///
 pub fn winapi_path_buf<W, WR>(api_wrapper: W) -> Result<std::path::PathBuf, std::io::Error>
@@ -366,6 +382,9 @@ where
 /// [sl]: std::ffi::OsStr::to_string_lossy
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
 /// use windows::Win32::System::WindowsProgramming::GetUserNameW;
 ///
 /// use grob::{winapi_string, RvIsError};
@@ -378,6 +397,7 @@ where
 ///     println!("GetUserNameW returned {}", username);
 ///     Ok(())
 /// }
+/// # }
 /// ```
 ///
 pub fn winapi_string<W, WR>(

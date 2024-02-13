@@ -24,6 +24,9 @@ pub(crate) trait GrowableBufferAsParent {
 /// # Examples
 ///
 /// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
 /// use std::path::PathBuf;
 ///
 /// use windows::{
@@ -108,6 +111,7 @@ pub(crate) trait GrowableBufferAsParent {
 ///     println!("This program lives at {}.", get_our_module_filename()?.display());
 ///     Ok(())
 /// }
+/// # }
 /// ```
 ///
 pub trait GrowStrategy {

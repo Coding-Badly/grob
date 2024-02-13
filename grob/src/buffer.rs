@@ -85,22 +85,22 @@ impl<const CAPACITY: usize> StackBuffer<CAPACITY> {
         }
     }
     fn as_mut_ptr(&mut self) -> (*mut u8, usize) {
-        // let offset = p.addr() % ALIGNMENT;
+        // nfx: Future enhancement...
         // https://github.com/rust-lang/rust/issues/95228
         let p = self.stack.as_mut_ptr() as *mut u8;
-        let offset = (p as usize) % os::ALIGNMENT;
+        let offset = p.align_offset(os::ALIGNMENT);
         (unsafe { p.add(offset) }, offset)
     }
     fn as_ptr(&self) -> (*const u8, usize) {
-        // let offset = p.addr() % ALIGNMENT;
+        // nfx: Future enhancement...
         // https://github.com/rust-lang/rust/issues/95228
         let p = self.stack.as_ptr() as *const u8;
-        let offset = (p as usize) % os::ALIGNMENT;
+        let offset = p.align_offset(os::ALIGNMENT);
         (unsafe { p.add(offset) }, offset)
     }
     fn offset(&self) -> usize {
         let p = self.stack.as_ptr() as *const u8;
-        (p as usize) % os::ALIGNMENT
+        p.align_offset(os::ALIGNMENT)
     }
 }
 
@@ -184,7 +184,10 @@ impl<const CAPACITY: usize> WriteBuffer for StackBuffer<CAPACITY> {
             let (p, o) = self.as_mut_ptr();
             (p, (CAPACITY - o).try_into().unwrap())
         } else {
-            (std::ptr::null_mut(), 0)
+            // This pointer may not be aligned but we're indicating there's zero capacity available
+            // so the caller had better not be using it.
+            let p = self.stack.as_mut_ptr() as *mut u8;
+            (p, 0)
         }
     }
 }

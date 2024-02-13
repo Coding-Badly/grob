@@ -246,6 +246,18 @@ where
     /// ([`winapi_large_binary`], [`winapi_path_buf`], [`winapi_small_binary`], and
     /// [`winapi_string`]) call `apply` automatically.
     ///
+    /// # Arguments
+    ///
+    /// * `fill_buffer_action` - What action to apply to the [GrowableBuffer].  This will nearly
+    /// always be the return value from a call to [`to_result`][tr].
+    ///
+    /// [tr]: crate::ToResult::to_result
+    ///
+    /// # Return Value
+    ///
+    /// `true` is return when the operating system call was successful and the buffer was large
+    /// enough to accommodate all the data.
+    ///
     pub fn apply(self, fill_buffer_action: FillBufferAction) -> bool {
         match fill_buffer_action {
             FillBufferAction::Commit => {
@@ -269,7 +281,7 @@ where
     /// [`RvIsSize`]) is not adequate for converting an operating system return value into a
     /// [`FillBufferAction`].
     ///
-    /// [1]: [Argument::apply]
+    /// [1]: crate::Argument::apply
     ///
     pub fn commit(self) {
         self.parent.set_final_size(self.size);
@@ -282,7 +294,7 @@ where
     /// [`RvIsSize`]) is not adequate for converting an operating system return value into a
     /// [`FillBufferAction`].
     ///
-    /// [1]: [Argument::apply]
+    /// [1]: crate::Argument::apply
     ///
     pub fn commit_no_data(self) {
         self.parent.set_final_size(0);
@@ -293,7 +305,7 @@ where
     /// `grow` directly will be necessary if a return value handler ([`RvIsError`] or [`RvIsSize`])
     /// is not adequate for converting an operating system return value into a [`FillBufferAction`].
     ///
-    /// [1]: [Argument::apply]
+    /// [1]: crate::Argument::apply
     ///
     pub fn grow(self) {
         self.parent.grow(self.size);
