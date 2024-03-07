@@ -466,11 +466,9 @@ mod straight_to_heap {
     mod rv_is_error {
         use std::mem::size_of;
 
-        use windows::Win32::Foundation::{
-            ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS,
-        };
+        use windows::Win32::Foundation::{ERROR_BUFFER_OVERFLOW, ERROR_SUCCESS};
 
-        use grob::{GrowableBuffer, GrowForSmallBinary, RvIsError, StackBuffer, ToResult};
+        use grob::{GrowForSmallBinary, GrowableBuffer, RvIsError, StackBuffer, ToResult};
 
         const SIZE_OF_U128: u32 = size_of::<u128>() as u32;
         const LARGE_INTEGER: u128 = 12345678901234567890123456789012345678_u128;
@@ -494,13 +492,12 @@ mod straight_to_heap {
         fn zero_sized_stack_buffer() {
             let mut initial_buffer = StackBuffer::<0>::new();
             let grow_strategy = GrowForSmallBinary::new();
-            let mut growable_buffer = GrowableBuffer::<u128,*mut u128>::new(
-                &mut initial_buffer, &grow_strategy);
+            let mut growable_buffer =
+                GrowableBuffer::<u128, *mut u128>::new(&mut initial_buffer, &grow_strategy);
             loop {
                 let mut argument = growable_buffer.argument();
-                let rv = RvIsError::new(unsafe {
-                    mimic_os(Some(argument.pointer()), argument.size())
-                });
+                let rv =
+                    RvIsError::new(unsafe { mimic_os(Some(argument.pointer()), argument.size()) });
                 let result = rv.to_result(&mut argument).unwrap();
                 if argument.apply(result) {
                     break;
@@ -518,7 +515,10 @@ mod straight_to_heap {
 
         use windows::core::PWSTR;
 
-        use grob::{GrowForStoredIsReturned, GrowableBuffer, RvIsSize, StackBuffer, ToResult, CAPACITY_FOR_PATHS};
+        use grob::{
+            GrowForStoredIsReturned, GrowableBuffer, RvIsSize, StackBuffer, ToResult,
+            CAPACITY_FOR_PATHS,
+        };
 
         pub unsafe fn mimic_os(lpfilename: &mut [u16]) -> u32 {
             if lpfilename.len() >= 2 {
@@ -535,15 +535,112 @@ mod straight_to_heap {
             let mut initial_buffer = StackBuffer::<0>::new();
             const CFP: u64 = CAPACITY_FOR_PATHS as u64;
             let grow_strategy = GrowForStoredIsReturned::<CFP>::new();
-            let mut growable_buffer = GrowableBuffer::<u16, PWSTR>::new(&mut initial_buffer, &grow_strategy);
+            let mut growable_buffer =
+                GrowableBuffer::<u16, PWSTR>::new(&mut initial_buffer, &grow_strategy);
             loop {
                 let mut argument = growable_buffer.argument();
-                let rv = RvIsSize::new( unsafe { mimic_os(argument.as_mut_slice()) } );
+                let rv = RvIsSize::new(unsafe { mimic_os(argument.as_mut_slice()) });
                 let result = rv.to_result(&mut argument).unwrap();
                 if argument.apply(result) {
                     break;
                 }
             }
+        }
+    }
+}
+
+mod windows_string {
+    mod storing_just_null {
+        use grob::WindowsString;
+
+        #[test]
+        fn zero_sized_stack_buffer_works() {
+            let ws = WindowsString::<0>::new("").unwrap();
+            assert!(unsafe { *ws.as_wide() } == 0);
+        }
+
+        #[test]
+        fn one_byte_stack_buffer_works() {
+            let ws = WindowsString::<1>::new("").unwrap();
+            assert!(unsafe { *ws.as_wide() } == 0);
+        }
+    }
+    mod storing_four_byte_chars {
+        use grob::WindowsString;
+
+        fn test_string() -> String {
+            let raw = &[
+                0xF0u8, 0x9F, 0x99, 0x88, 0xF0, 0x9F, 0x99, 0x89, 0xF0, 0x9F, 0x99, 0x8A,
+            ];
+            std::str::from_utf8(raw).unwrap().to_string()
+        }
+
+        #[test]
+        fn just_fits_on_stack() {
+            let ts = test_string();
+            let ws = WindowsString::<13>::new(&ts).unwrap();
+            let mut p = ws.as_wide();
+            assert!(unsafe { *p } == 0xD83D);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xDE48);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xD83D);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xDE49);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xD83D);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xDE4A);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0x0000);
+        }
+
+        #[test]
+        fn does_not_quite_fit_on_stack() {
+            let ts = test_string();
+            let ws = WindowsString::<12>::new(&ts).unwrap();
+            let mut p = ws.as_wide();
+            assert!(unsafe { *p } == 0xD83D);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xDE48);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xD83D);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xDE49);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xD83D);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0xDE4A);
+            p = unsafe { p.add(1) };
+            assert!(unsafe { *p } == 0x0000);
+        }
+
+        pub unsafe fn mimic_os(mut s: *const u16) -> u32 {
+            let mut rv = 0;
+            loop {
+                if unsafe { *s } == 0 {
+                    return rv;
+                }
+                rv += 1;
+                s = unsafe { s.add(1) };
+            }
+        }
+
+        #[test]
+        fn is_ergonomic_and_safe() {
+            let ts = test_string();
+
+            let ws = WindowsString::<13>::new(&ts).unwrap();
+            let len = unsafe { mimic_os(ws.as_wide()) };
+            assert!(len == 6);
+
+            let ws = WindowsString::<12>::new(&ts).unwrap();
+            let len = unsafe { mimic_os(ws.as_wide()) };
+            assert!(len == 6);
+
+            let ws = WindowsString::<0>::new(&ts).unwrap();
+            let len = unsafe { mimic_os(ws.as_wide()) };
+            assert!(len == 6);
         }
     }
 }

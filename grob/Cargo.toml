@@ -1,6 +1,6 @@
 [package]
 name = "grob"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Brian Cook (a.k.a Coding-Badly)"]
 license = "Apache-2.0 OR MIT"
 readme = "../README.md"
@@ -29,6 +29,7 @@ features = [
 [target.'cfg(windows)'.dev-dependencies.windows]
 version = "0.48"
 features = [
+    "Win32_Globalization",
     "Win32_Networking_WinSock",
     "Win32_NetworkManagement_IpHelper",
     "Win32_NetworkManagement_Ndis",
@@ -41,3 +42,6 @@ features = [
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-msvc"
 targets = []
+
+[features]
+skip_null_check = []
