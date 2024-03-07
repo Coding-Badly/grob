@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::mem::size_of;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use windows::core::PWSTR;
+use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
     GetLastError, SetLastError, BOOL, ERROR_BUFFER_OVERFLOW, ERROR_INSUFFICIENT_BUFFER,
     ERROR_NO_DATA, MAX_PATH, NO_ERROR, TRUE, WIN32_ERROR,
@@ -28,7 +28,10 @@ use windows::Win32::NetworkManagement::NetManagement::UNLEN;
 use crate::base::{FillBufferAction, FillBufferResult};
 use crate::buffer::os::ALIGNMENT;
 use crate::traits::{NeededSize, RawToInternal, ToResult};
+use crate::winstr::WindowsString;
 use crate::{Argument, FrozenBuffer};
+
+const BETTER_MAX_PATH: usize = MAX_PATH as usize;
 
 /// Size of [`WCHAR`][wc] / [`u16`] (two bytes) cast as a [`u32`].
 ///
@@ -62,7 +65,8 @@ pub const CAPACITY_FOR_NAMES: usize = ((UNLEN + 1) as usize * SIZE_OF_WCHAR as u
 /// [3]: crate::generic::winapi_path_buf
 /// [4]: https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulefilenamew
 ///
-pub const CAPACITY_FOR_PATHS: usize = (MAX_PATH as usize * SIZE_OF_WCHAR as usize) + ALIGNMENT;
+pub const CAPACITY_FOR_PATHS: usize =
+    (BETTER_MAX_PATH as usize * SIZE_OF_WCHAR as usize) + ALIGNMENT;
 
 impl<'gb> Argument<'gb, PWSTR> {
     /// Provides access to the buffer through a writable slice of [`u16`]
@@ -390,5 +394,91 @@ impl<'sb> FrozenBuffer<'sb, u16> {
             }
             None => Ok(String::new()),
         }
+    }
+}
+
+pub trait AsPCWSTR {
+    fn as_param(&self) -> PCWSTR;
+}
+
+/// Windows (UTF-16) string placed on the stack when possible to improve performance sized for
+/// paths.
+///
+/// [`WindowsPathString`] provides a convenient fast way to convert from a Rust UTF-8 string to a
+/// Windows API UTF-16 NUL terminated string.  It's typically used for path parameters when calling
+/// Windows API functions like [`ReplaceFileW`][rf].
+///
+/// # Examples
+///
+/// This example creates a file using functions from the Rust Standard Library then deletes that
+/// file using the Windows API [`DeleteFileW`][df] function.
+///
+/// ```
+/// # #[cfg(not(miri))]
+/// # mod miri_skip {
+/// #
+/// use std::fs::{canonicalize, File};
+/// use std::io::Write;
+///
+/// use windows::Win32::{Foundation::TRUE, Storage::FileSystem::DeleteFileW};
+///
+/// use grob::{AsPCWSTR, WindowsPathString};
+///
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let working_dir = canonicalize(".")?;
+///     let target_path = working_dir.join("delete-me.tmp");
+///
+///     let mut output = File::create(&target_path)?;
+///     write!(output, "Please delete this file.")?;
+///     drop(output);
+///
+///     let rv = unsafe { DeleteFileW(WindowsPathString::new(&target_path)?.as_param()) };
+///     if rv == TRUE {
+///         println!("{} successfully deleted.", target_path.display());
+///     } else {
+///         let loe = std::io::Error::last_os_error();
+///         println!("DeleteFileW failed.  The error is...\n  {:?}.", loe);
+///     }
+///
+///     Ok(())
+/// }
+/// # }
+/// ```
+///
+/// [rf]: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew
+/// [df]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew
+///
+pub struct WindowsPathString {}
+
+impl WindowsPathString {
+    /// Create a [`WindowsString`] with space for [`MAX_PATH`] characters on the stack.
+    ///
+    /// # Errors
+    ///
+    /// If the string contains any embedded NULs an error is returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - The [`OsStr`] to convert to a Windows API UTF-16 NUL terminated string.  Anything
+    /// that can be converted to an [`OsStr`] reference, including plain ole Rust strings, can be
+    /// passed.
+    ///
+    pub fn new<S>(s: S) -> std::io::Result<WindowsString<BETTER_MAX_PATH>>
+    where
+        S: AsRef<OsStr>,
+    {
+        WindowsString::new(s)
+    }
+}
+
+impl<const STACK_BUFFER_SIZE: usize> AsPCWSTR for WindowsString<STACK_BUFFER_SIZE> {
+    /// Return a pointer to the converted Windows API UTF-16 NUL terminated string wrapped in a [`PCWSTR`].
+    ///
+    /// The return value can be used as-is for Windows API calls defined in the [windows][ws] crate.
+    ///
+    /// [ws]: https://crates.io/crates/windows
+    ///
+    fn as_param(&self) -> PCWSTR {
+        PCWSTR(self.as_wide())
     }
 }

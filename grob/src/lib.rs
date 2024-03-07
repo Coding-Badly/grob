@@ -48,6 +48,10 @@
 //! | elements / WCHARs stored  | path            | [`GetSystemWindowsDirectoryW`][6]       | [`winapi_path_buf`] + [`RvIsSize`]      |
 //! | bytes stored              | large + binary  | [`GetFileVersionInfoSizeW`][7]          | [`winapi_large_binary`] + [see example][e] |
 //!
+//! [`WindowsString`] and [`WindowsPathString`] are available for easily and efficiently passing
+//! string parameters into Windows API functions like [`DeleteFileW`][df], [`ReplaceFileW`][rf], and
+//! [`SetComputerNameW`][scn].
+//!
 //! [b]: windows::Win32::Foundation::BOOL
 //! [1]: https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersaddresses
 //! [2]: https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex
@@ -57,6 +61,9 @@
 //! [6]: https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemwindowsdirectoryw
 //! [7]: https://learn.microsoft.com/en-us/windows/win32/api/winver/nf-winver-getfileversioninfosizew
 //! [e]: https://github.com/Coding-Badly/grob/blob/main/grob/examples/version-info-generic.rs
+//! [df]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew
+//! [rf]: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew
+//! [scn]: https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-setcomputernamew
 //!
 
 use std::marker::PhantomData;
@@ -67,6 +74,7 @@ mod generic;
 mod strategy;
 mod traits;
 mod win;
+mod winstr;
 
 pub use crate::base::{FillBufferAction, FillBufferResult};
 pub use crate::buffer::{os::ALIGNMENT, StackBuffer};
@@ -81,7 +89,11 @@ pub use crate::strategy::{
 pub use crate::traits::{
     GrowStrategy, NeededSize, RawToInternal, ReadBuffer, ToResult, WriteBuffer,
 };
-pub use crate::win::{RvIsError, RvIsSize, CAPACITY_FOR_NAMES, CAPACITY_FOR_PATHS, SIZE_OF_WCHAR};
+pub use crate::win::{
+    AsPCWSTR, RvIsError, RvIsSize, WindowsPathString, CAPACITY_FOR_NAMES, CAPACITY_FOR_PATHS,
+    SIZE_OF_WCHAR,
+};
+pub use crate::winstr::WindowsString;
 
 use crate::buffer::HeapBuffer;
 use crate::traits::GrowableBufferAsParent;

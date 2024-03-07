@@ -1,5 +1,14 @@
 # Changelog
 
+## grob 0.1.3 (2024-03-07)
+[v0.1.2...v0.1.3](https://github.com/Coding-Badly/grob/compare/v0.1.2...v0.1.3)
+
+### Added
+
+- WindowsString - Windows (UTF-16) string placed on the stack when possible to improve performance.
+- WindowsPathString - Windows (UTF-16) string placed on the stack when possible to improve performance sized for paths.
+- Three examples to demonstrate the two above: delete-file, get-set-computer-name, and replace_file.
+
 ## grob 0.1.2 (2024-02-11)
 [v0.1.1...v0.1.2](https://github.com/Coding-Badly/grob/compare/v0.1.1...v0.1.2)
 
