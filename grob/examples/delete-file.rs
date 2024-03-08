@@ -17,7 +17,7 @@ use std::io::Write;
 
 use windows::Win32::{Foundation::TRUE, Storage::FileSystem::DeleteFileW};
 
-use grob::{AsPCWSTR, WindowsPathString};
+use grob::WindowsPathString;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let working_dir = canonicalize(".")?;
@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     write!(output, "Please delete this file.")?;
     drop(output);
 
-    let rv = unsafe { DeleteFileW(WindowsPathString::new(&target_path)?.as_param()) };
+    let rv = unsafe { DeleteFileW(&WindowsPathString::new(&target_path)?) };
     if rv == TRUE {
         println!("{} successfully deleted.", target_path.display());
     } else {

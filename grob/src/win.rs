@@ -482,3 +482,23 @@ impl<const STACK_BUFFER_SIZE: usize> AsPCWSTR for WindowsString<STACK_BUFFER_SIZ
         PCWSTR(self.as_wide())
     }
 }
+
+use windows::core::{IntoParam, Param};
+
+impl<const STACK_BUFFER_SIZE: usize> IntoParam<PCWSTR> for &WindowsString<STACK_BUFFER_SIZE> {
+    fn into_param(self) -> Param<PCWSTR> {
+        Param::Owned(self.as_param())
+    }
+}
+
+//impl<const STACK_BUFFER_SIZE: usize> std::borrow::Borrow<u16> for WindowsString<STACK_BUFFER_SIZE> {
+//    fn borrow(&self) -> &u16 {
+//        self.as_wide()
+//    }
+//}
+
+//impl<const STACK_BUFFER_SIZE: usize> AsRef<*const u16> for WindowsString<STACK_BUFFER_SIZE> {
+//    fn as_ref(&self) -> *const u16 {
+//        self.as_wide()
+//    }
+//}
