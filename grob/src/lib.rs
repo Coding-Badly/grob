@@ -267,7 +267,7 @@ where
     ///
     /// # Return Value
     ///
-    /// `true` is return when the operating system call was successful and the buffer was large
+    /// `true` is returned when the operating system call was successful and the buffer was large
     /// enough to accommodate all the data.
     ///
     pub fn apply(self, fill_buffer_action: FillBufferAction) -> bool {
