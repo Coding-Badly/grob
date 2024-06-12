@@ -14,6 +14,8 @@
 
 use windows::Win32::Foundation::HMODULE;
 use windows::Win32::System::LibraryLoader::GetModuleFileNameW;
+use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+use windows::Win32::System::Threading::GetCurrentProcess;
 
 use grob::{winapi_path_buf, RvIsSize};
 
@@ -22,5 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         RvIsSize::new(unsafe { GetModuleFileNameW(HMODULE(0), argument.as_mut_slice()) })
     })?;
     println!("GetModuleFileNameW returned {}", path.display());
+
+    let path = winapi_path_buf(|argument| {
+        RvIsSize::new(unsafe { GetModuleFileNameExW(GetCurrentProcess(), HMODULE(0), argument.as_mut_slice()) })
+    })?;
+    println!("GetModuleFileNameExW returned {}", path.display());
+
     Ok(())
 }
